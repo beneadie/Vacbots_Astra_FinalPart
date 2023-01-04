@@ -1,0 +1,297 @@
+//*** although there are other things I would like to have checked the main issue I've had is that the
+// routing list will not create using the Routing module
+// the code is identical to that of part 3 in that section but it will not run and causes lots of confusion
+// there also is an issue was an issue with the leader bot sending messages too many times
+
+
+agent Follower {
+     module EIS ei;
+     module Console C;
+     module Routing R;
+     module Math math;
+     module System sys;
+
+     types follower{
+          formula free(string);
+
+          formula counter(int);
+
+          formula routelist(list);
+          formula route(list);
+
+          formula job(boolean);
+          formula coordinates(list);
+
+          formula start(boolean);
+
+     }
+// inferences
+     inference free(string Sq):- ei.square(Sq, "dust") ;
+     inference free(string Sq):- ei.square(Sq, "empty") ;
+
+     inference route(list L):- routelist(L);
+
+// testing counter
+     initial counter(0);
+
+     initial job(false);
+
+     initial start(false);
+
+
+
+
+// event to trigger next task
+     rule +$ei.event(task("none")): counter(int count){
+          !update();
+          query(start(boolean Eval));
+          //false is no job
+          if (Eval == false){
+               query(ei.location(long X, long Y));
+               list L = [X, Y];
+               send(inform, "Henry", coordinates(L));
+               // only for start so never changes back
+               -start(false);
+               +start(true);
+               !task(string action);
+          }
+          else{
+               !task(string action);
+          }
+
+     }
+// i fuond that the bug fix code given actually created a bug whilst never i observed any bugs when running the
+//original code so i left both in as a compromise. i did observe one instance of a bug when running it like this but
+//the fix code would break all 4 vacs within 4 or 5 moves
+     //rule +$ei.event(location(long X, long Y)): counter(int count){
+     //     !update();
+     //     query(job(boolean Eval));
+     //     //false is no job
+     //     if (Eval == false){
+     //          query(ei.location(long sx, long sy));
+     //          send(inform, "Henry", coordinates([sx, sy]));
+     //          -job(false);
+     //          +job(true);
+     //          !task(string action);
+     //     }
+     //     else{
+     //          !task(string action);
+     //     }
+     //}
+
+     rule @message(inform, string sender, coordinates(list L)){
+     // couldnt find normal way to index list
+          C.println("got a message :)");
+          int n = 0;
+          //query(job(boolean eval));
+          //if (eval == false){
+               forall (long i : L){
+                    if (n == 0){
+                         long tx = i;
+                         n = n + 1;
+                    }
+                    else if (n== 1){
+                         long ty = i;
+                    }
+               }
+               -job(false);
+               +job(true);
+               !route(long tx, long ty);
+          //}
+          //else{
+          //     C.println("already has a job??? D:");
+          //     !task();
+          //}
+     }
+
+
+
+     //function to move in map relevant direction
+     rule +!go(move(string direction), string action) {
+          C.println("direction 2: " + direction);
+          //C.println("action: " + action);
+          ei.move(direction);
+          //action = direction;
+// by running it as a loop until reached the vacbot gets a constantly updating path to deal with obstacles
+          !update();
+          !task(action);
+     }
+
+// tasks
+
+//cleans dust in its square only
+     //rule +!task(string action) : ei.square("here", "dust") {
+     //     ei.clean();
+     //     action = "clean";
+     //     !go(string move, action);
+     //}
+     //routing moves
+     rule +!task(string action) : route([funct move]) {
+          //cleaning check
+          query(ei.square("here", string X));
+          if(X == "dust"){
+               ei.clean();
+          }
+          else{}
+          C.println("direction 1: " + move);
+          //C.println("action: " + L);
+          -route([move]);
+          !go(move, action);
+
+     }
+     rule +!task(string action) : route([funct move| list L]) {
+          //cleaning check
+          query(ei.square("here", string X));
+          if(X == "dust"){
+               ei.clean();
+          }
+          else{}
+          C.println("direction 1a: " + move);
+          C.println("action: " + L);
+          -+route(L);
+          !go(move, action);
+     }
+     rule +!task(string action) : ei.square("here", "dust") {
+          ei.clean();
+          action = "clean";
+          //!go(string move, action);
+     }
+     // when doing nothing they spin
+     rule +!task(string action) {
+          ei.move("right", 0);
+          action = "move";
+
+     }
+
+// might bring this back later to have them move autonomously and then get assigned destinations
+// would need to restructure and maybe rename some goals to split things up
+     //clean
+     //rule +!task(string action) : ei.square("here", "dust") {
+     //     ei.clean();
+     //     //!route();
+     //     //action = "clean";
+     //     !task(action);
+     //}
+     //// move to dust squares
+     //rule +!task(string action) : ei.square("forward", "dust") & free("forward") {
+     //     ei.move("forward");
+     //     action = "move";
+     //}
+     //rule +!task(string action): free("left") & free("right"){
+     //     // when both left and right free but forward is not pick randomly
+     //     int ran = 0+(math.randomInt() % 2);
+     //     if (ran == 0){
+     //          ei.move("left");
+     //     }
+     //     else{
+     //          ei.move("right");
+//
+     //     }
+     //     action = "move";
+     //}
+     //rule +!task(string action) : ei.square("left", "dust") & free("left"){
+     //     ei.move("left");
+     //     action = "move";
+     //}
+     //rule +!task(string action) : ei.square("right", "dust") & free("right"){
+     //     ei.move("right");
+     //     action = "move";
+     //}
+     //rule +!task(string action): ei.square("forwardLeft", "dust")& free("forward"){
+     //     ei.move("forward");
+     //     action = "move";
+     //}
+     //rule +!task(string action): ei.square("forwardRight", "dust")& free("forward"){
+     //     ei.move("forward");
+     //     action = "move";
+     //}
+     //rule +!task(string action): free("forward"){
+     //     ei.move("forward");
+     //     action = "move";
+     //}
+     //rule +!task(string action): free("left"){
+     //     ei.move("left");
+     //     action = "move";
+     //}
+     //rule +!task(string action): free("right"){
+     //     ei.move("right");
+     //     action = "move";
+     //}
+     //// when can see no empty squares turns left until it can
+     //rule +!task(string action){ //: ~free(string Sq) { not sure if needed yet
+     //     ei.move("left", 0);
+     //     action = "move";
+     //}
+
+     rule +!route(long tx, long ty){
+// sometimes this query does not work so needed safety check as it breaks the program sometimes
+          boolean check = false;
+          C.println("doing a route :)");
+          //C.println("DESTINATION  x: " + tx);
+          //C.println("DESTINATION  y: " + ty);
+          while (check == false){
+               query(ei.location(long sx, long sy));
+               //if (sx > -5 & sy > -5){
+                    //check = true;
+                    if (sx == ty & sy == ty){
+                         check = true;
+                         -job(true);
+                         +job(false);
+                         //list L = [tx, ty];
+                         -routelist([tx, ty]);
+                         //list Ls = [sx, sy];
+                         C.println("MADE IT TO DESTINATION");
+                         send(inform, "Henry", coordinates([sx, sy]));
+                         !task(string action);
+                    }
+                    else{
+
+//********* fails to declare the variable for the route list L no matter what i do **************//
+// commented out a lot of different things I had as safety precautions but doesn't change
+                         list L = R.routeTo(sx, sy, tx, ty);
+                         C.println("ROUTE CREATED");
+                         check = true;
+                         +routelist(L);
+                         !task(string action);
+                    }
+               //}
+               //else{}
+          }
+     }
+
+
+//doesn't matter much but left it in anyway
+     rule +!update(){
+          query(ei.location(long X, long Y));
+          query(ei.direction(string D));
+          foreach(ei.square(string location, "obstacle") & ~R.obstacle(X, Y, D, location)) {
+               R.recordObstacle(X, Y, D, location);
+          }
+          // 1 extra for boundary
+          long gX = X+1;
+          long gY = Y+1;
+          long cX = R.maxX();
+          long cY = R.maxY();
+          if (gX > cX){
+               cX = gX;
+               }
+          if (gY > cY){
+               cY = gY;
+          }
+          R.updateBoundary(cX, cY);
+     }
+
+
+
+
+
+
+// main rule
+     rule +!main([string vacbot]) {
+          //sys.sleep(10000);
+          ei.join("hw");
+          ei.link(vacbot);
+          C.println("Follower bot activated");
+
+     }
+}

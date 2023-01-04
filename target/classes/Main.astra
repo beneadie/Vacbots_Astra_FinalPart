@@ -1,0 +1,30 @@
+agent Main{
+    module EIS ei;
+   // module Console C;
+   // module Math math;
+    module System sys;
+
+
+     rule +!main(list args) {
+          ei.launch("hw","dependency/vacuumworld-1.2.0.jar");
+          ei.init([generation("no"), level("5")]);
+	     ei.start();
+          list entities = ei.freeEntities();
+          int count = 1;
+          forall(string entity : entities) {
+               if (count == 1){
+                    sys.createAgent(entity, "Leader");
+                    sys.setMainGoal(entity, [entity]);
+                    count = count +1;
+               }
+               else {
+                    sys.createAgent(entity, "Follower");
+                    sys.setMainGoal(entity, [entity]);
+               }
+          }
+     }
+
+
+
+
+}

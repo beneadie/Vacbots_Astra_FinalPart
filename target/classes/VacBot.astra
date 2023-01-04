@@ -1,0 +1,213 @@
+agent VacBot {
+     module EIS ei;
+     module Console C;
+     module Routing R;
+     module System sys;
+// tried making a module to check whether variable was long or string or int
+// couldn't workout how to feed the variable from astra to java but left in so you could give tutorial enxt year
+     //module Extra EX;
+
+     types vacbot{
+          formula free(string);
+
+          formula counter(int);
+
+          formula routelist(list);
+          formula route(list);
+
+
+     }
+// inferences
+     inference free(string Sq):- ei.square(Sq, "dust") ;
+     inference free(string Sq):- ei.square(Sq, "empty") ;
+
+     inference route(list L):- routelist(L);
+
+// testing counter
+     initial counter(0);
+
+
+
+
+// event to trigger next task
+     rule +$ei.event(task("none")): counter(int count){
+          !update();
+          -counter(count);
+          +counter(count+1);
+          if (count == 20) {
+               !route(string action);
+          }
+          else{
+               !task(string action);
+          }
+     }
+// i fuond that the bug fix code given actually created a bug whilst never i observed any bugs when running the
+//original code so i left both in as a compromise. i did observe one instance of a bug when running it like this but
+//the fix code would break all 4 vacs within 4 or 5 moves
+     rule +$ei.event(location(long X, long Y)): counter(int count){
+          !update();
+          -counter(count);
+          +counter(count+1);
+          if (count == 20) {
+               !route(string action);
+          }
+          else{
+               !task(string action);
+          }
+     }
+
+     //function to move in map relevant direction
+     rule +!go(move(string direction), string action) {
+          C.println("direction 2: " + direction);
+          //C.println("action: " + action);
+          ei.move(direction);
+          action = direction;
+// by running it as a loop until reached the vacbot gets a constantly updating path to deal with obstacles
+          !update();
+          !task(action);
+     }
+
+// tasks
+     // routing moves
+     rule +!task(string action) : route([funct move]) {
+          C.println("direction 1: " + move);
+          //C.println("action: " + L);
+          C.println("ITS TASKING!");
+          sys.sleep(5000);
+          -route([move]);
+          !go(move, action);
+
+     }
+     rule +!task(string action) : route([funct move| list L]) {
+          C.println("direction 1a: " + move);
+          C.println("action: " + L);
+          C.println("ITS TASKING!");
+          sys.sleep(5000);
+          -+route(L);
+          !go(move, action);
+     }
+     //clean
+     rule +!task(string action) : ei.square("here", "dust") {
+          ei.clean();
+          //!route();
+          //action = "clean";
+          !task(action);
+
+     }
+     // move to dust squares
+     rule +!task(string action) : ei.square("forward", "dust") & free("forward") {
+          ei.move("forward");
+          action = "move";
+     }
+     rule +!task(string action) : ei.square("left", "dust") & free("left"){
+          ei.move("left");
+          action = "move";
+     }
+     rule +!task(string action) : ei.square("right", "dust") & free("right"){
+          ei.move("right");
+          action = "move";
+     }
+     rule +!task(string action): ei.square("forwardLeft", "dust")& free("forward"){
+          ei.move("forward");
+          action = "move";
+     }
+     rule +!task(string action): ei.square("forwardRight", "dust")& free("forward"){
+          ei.move("forward");
+          action = "move";
+     }
+     rule +!task(string action): free("forward"){
+          ei.move("forward");
+          action = "move";
+     }
+     rule +!task(string action): free("left"){
+          ei.move("left");
+          action = "move";
+     }
+     rule +!task(string action): free("right"){
+          ei.move("right");
+          action = "move";
+     }
+     // when can see no empty squares turns left until it can
+     rule +!task(string action){ //: ~free(string Sq) { not sure if needed yet
+          ei.move("left", 0);
+          action = "move";
+     }
+
+     rule +!route(string action){
+// sometimes this query does not work so needed safety check as it breaks the program sometimes
+          boolean check = false;
+          while (check == false){
+               query(ei.location(long sx, long sy));
+               if (sx > -5 & sy > -5){
+                    long tx = 1l;
+                    long ty = 1l;
+                    list L = R.routeTo(sx, sy, tx, ty);
+                    //C.println("L=" + L);
+                    //R.displayMap();
+               // worked consistently when indirectly triggering the inference
+                    +routelist(L);
+                    !task(action);
+                    check = true;
+               }
+               else{}
+          }
+     }
+
+
+
+
+     rule +!update(){
+// Wrote code to try deal with ei.location and direction failing but the module I made would not work
+// Not certain if module worked that it would have behaved correctly anyway
+// could not reuse the code within the route rule because for beginning of environment they would not move
+          //boolean check = false;
+          //while (check == false){
+          query(ei.location(long X, long Y));
+          query(ei.direction(string D));
+               //boolean check1 = EX.checklong(X);
+               //boolean check1 = EX.checklong(Y);
+               //boolean check1 = EX.checkstr(D);
+               //if (X == true & Y == true & D == true ){
+          foreach(ei.square(string location, "obstacle") & ~R.obstacle(X, Y, D, location)) {
+               R.recordObstacle(X, Y, D, location);
+          }
+          // 1 extra for boundary
+          long gX = X+1;
+          long gY = Y+1;
+          long cX = R.maxX();
+          long cY = R.maxY();
+          if (gX > cX){
+               cX = gX;
+               }
+          if (gY > cY){
+               cY = gY;
+          }
+          R.updateBoundary(cX, cY);
+     }
+          //     else {}
+          //}
+     //}
+
+     //tester - probably remove later
+     //rule +route([funct move| list L]){
+     //     //query([funct move| list L]);
+     //     C.println("list: "+ L);
+     //     C.println("moves: "+ move);
+//
+//
+     //}
+
+
+
+
+
+
+
+// main rule
+     rule +!main([string vacbot]) {
+          ei.join("hw");
+          ei.link(vacbot);
+          C.println("VacBot activated");
+
+     }
+}

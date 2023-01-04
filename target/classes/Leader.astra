@@ -1,0 +1,559 @@
+agent Leader {
+     module EIS ei;
+     module Console C;
+     module Routing R;
+     module Math math;
+
+     types leader{
+          formula free(string);
+
+          formula counter(int);
+
+          formula routelist(list);
+          formula route(list);
+
+          formula checkheight(int);
+          formula checkwidth(int);
+
+          formula dustlist(list);
+
+          formula donelist(list);
+
+          formula todolist(list);
+
+          formula coordinates(list);
+
+          formula holdreceiver(string);
+
+          //formula wall(string); //string should be either direction or which side of rectangle
+     }
+// inferences
+     inference free(string Sq):- ei.square(Sq, "dust") ;
+     inference free(string Sq):- ei.square(Sq, "empty") ;
+
+     inference route(list L):- routelist(L);
+
+
+// testing counter
+     initial counter(0);
+     initial dustlist([]);
+     initial donelist([]);
+     initial todolist([]);
+
+
+     // event to trigger next task
+     rule +$ei.event(task("none")): counter(int count){
+          query(dustlist(list L1));
+          //query(todolist(list L2));
+          forall(list X1 : L1) {
+               query(todolist(list L2));
+               boolean checker = false;
+               forall(list X2 : L2 ){
+                    if (X1 == X2){
+                         checker = true;
+                    }
+                    else {}
+               }
+               if (checker == false){
+                    //query(todolist(list L3)); // need because it will change in loop
+                    list NewL = L2 + [X1];
+                    -todolist(L2);
+                    +todolist(NewL);
+                    C.println("to do list: " + NewL);
+                    !messfail();
+               }
+               else{}
+          }
+          !task(string action);
+     }
+
+     //rule +$ei.event(location(long X, long Y)): counter(int count){
+     //          query(dustlist(list L1));
+     //          //query(todolist(list L2));
+     //          forall(list X1 : L1) {
+     //               query(todolist(list L2));
+     //               boolean checker = false;
+     //               forall(list X2 : L2 ){
+     //                    if (X1 == X2){
+     //                         checker = true;
+     //                    }
+     //                    else {}
+     //               }
+     //               if (checker == false){
+     //                    //query(todolist(list L3)); // need because it will change in loop
+     //                    list NewL = L2 + [X1];
+     //                    -todolist(L2);
+     //                    +todolist(NewL);
+     //                    C.println("to do list: " + NewL);
+     //                    !messfail();
+     //               }
+     //               else{}
+     //          }
+     //          !task(string action);
+     //}
+
+     rule +!messfail(){
+          query(todolist(list L1));
+          query(donelist(list L2));
+          C.println("to do list 2: "+ L1);
+          list blank = [];
+          if (L1 == blank){
+               //C.println("to do list was empty....");
+               !task(string action);
+               C.println("list was blank");
+          }
+          else{
+               //C.println("to do list not empty!");
+               foreach(holdreceiver(string sender)){
+                    //C.println("holding at least one receiver");
+                    //boolean checker = false;
+                    C.println("doing check to find job for " + sender);
+                    forall(list X1 : L1) {
+                         boolean checker = false;
+                         forall(list X2 : L2 ){
+                              if (X1 == X2){
+                                   C.println("LIST 1:  " + L1);
+                                   C.println("LIST 2:  " + L2);
+                                   C.println(X1 + "was already in list");
+                                   checker = true;
+                              }
+                              else {}
+                         }
+                         if (checker == false){
+                              C.println("adding to done list");
+                              send(inform, sender, coordinates(X1));
+                              -donelist(L2);
+                              list NewL = L2 + [X1];
+                              +donelist(NewL);
+                              +coordinates(X1);
+                              C.println("sending " +sender +" to " + X1 + "!");
+                              checker = true;
+                         }
+                         else{}
+               }
+               }
+          }
+
+     }
+
+     rule @message(inform, string sender, coordinates(list Slist)){ // could add extra parameter to find nearest one later
+         // C.println("received request for direction from " +sender + "!");
+         // query(todolist(list L1));
+         // query(donelist(list L2));
+         // C.println("to do list: "+ L1);
+         // list blank = [];
+         // if (L1 == blank){ // If there is nothing in the list henry continues but will do a check every loop
+          +holdreceiver(sender);
+          !task(string action);
+          //}
+          //else{
+          //     boolean checker = false;
+          //     forall(list X1 : L1) {
+          //          forall(list X2 : L2 ){
+          //               if (X1 == X2){
+          //                    checker = true;
+          //               }
+          //               else {}
+          //          }
+          //          if (checker == false){
+          //               C.println("adding to done list");
+          //               checker = true;
+          //               -donelist(L2);
+          //               list NewL = L2 + [X1];
+          //               +donelist(NewL);
+          //               +coordinates(X1);
+          //               C.println("sending " +sender +" to " + X1 + "!");
+          //               send(inform, sender, coordinates(X1));
+          //          }
+          //          else{}
+          //     }
+          //}
+     }
+
+
+
+// check functions to see if there is dust in the visible squares
+     // for when the first square is a dust one
+     rule +!check1() : ei.square("here", "dust") {
+          // making sure it get the location
+          boolean check = false;
+          while (check == false){
+               query(ei.location(long sx, long sy));
+               if (sx > -5 & sy > -5){
+                    query(dustlist(list L));
+                    -dustlist(L);
+                    //C.println(L);
+                    L = L + [[sx, sy]];
+                    check = true;
+                    +dustlist(L);
+               }
+               else{}
+          }
+     }
+//every check needs an empty option for when there's no dust
+     rule +!check1() {}
+     rule +!check2() : ei.square("forward", "dust") & ei.direction("north") {
+          // making sure it get the location
+          boolean check = false;
+          while (check == false){
+               query(ei.location(long sx, long sy));
+               if (sx > -5 & sy > -5){
+               // facing forawrd and direction is northe then -1, 0 from possition
+                    sx = sx - 1;
+                    query(dustlist(list L));
+                    -dustlist(L);
+                    //C.println(L);
+                    L = L + [[sx, sy]];
+                    check = true;
+                    +dustlist(L);
+               }
+               else{}
+          }
+     }
+     rule +!check2() {}
+
+     rule +!check3() : ei.square("forward", "dust") {
+          // making sure it get the location
+          boolean check = false;
+          while (check == false){
+               query(ei.location(long sx, long sy));
+               if (sx > -5 & sy > -5){
+               // direction to say relevent to position
+                    query(ei.direction(string D));
+                    if (D == "north"){
+                    // north so 0,-1 from location
+                         sy = sy -1;
+                         query(dustlist(list L));
+                         -dustlist(L);
+                         //C.println(L);
+                         L = L + [[sx, sy]];
+                         check = true;
+                         +dustlist(L);
+                    }
+                    else if (D== "south"){
+                    // south so 0,+1 from location
+                         sy = sy +1;
+                         query(dustlist(list L));
+                         -dustlist(L);
+                         //C.println(L);
+                         L = L + [[sx, sy]];
+                         check = true;
+                         +dustlist(L);
+                    }
+                    else if (D== "east"){
+                    // east so +1,0 from location
+                         sx = sx +1;
+                         query(dustlist(list L));
+                         -dustlist(L);
+                         //C.println(L);
+                         L = L + [[sx, sy]];
+                         check = true;
+                         +dustlist(L);
+                    }
+                    else if (D== "west"){
+                    // west so -1, 0 from location
+                         sx = sx -1;
+                         query(dustlist(list L));
+                         -dustlist(L);
+                         //C.println(L);
+                         L = L + [[sx, sy]];
+                         check = true;
+                         +dustlist(L);
+                    }
+               }
+               else{}
+          }
+     }
+     rule +!check3() {}
+
+     rule +!check4() : ei.square("left", "dust") {
+          // making sure it get the location
+          boolean check = false;
+          while (check == false){
+               query(ei.location(long sx, long sy));
+               if (sx > -5 & sy > -5){
+               // direction to say relevent to position
+                    query(ei.direction(string D));
+                    if (D == "north"){
+                    // north so -1,0 from location
+                         sx = sx -1;
+                         query(dustlist(list L));
+                         -dustlist(L);
+                         //C.println(L);
+                         L = L + [[sx, sy]];
+                         check = true;
+                         +dustlist(L);
+                    }
+                    else if (D== "south"){
+                    // south so +1,0 from location
+                         sx = sx +1;
+                         query(dustlist(list L));
+                         -dustlist(L);
+                         //C.println(L);
+                         L = L + [[sx, sy]];
+                         check = true;
+                         +dustlist(L);
+                    }
+                    else if (D== "east"){
+                    // east so 0,-1 from location
+                         sy = sy -1;
+                         query(dustlist(list L));
+                         -dustlist(L);
+                         //C.println(L);
+                         L = L + [[sx, sy]];
+                         check = true;
+                         +dustlist(L);
+                    }
+                    else if (D== "west"){
+                    // west so 0, +1 from location
+                         sy = sy +1;
+                         query(dustlist(list L));
+                         -dustlist(L);
+                         //C.println(L);
+                         L = L + [[sx, sy]];
+                         check = true;
+                         +dustlist(L);
+                    }
+               }
+               else{}
+          }
+     }
+     rule +!check4() {}
+
+     rule +!check5() : ei.square("right", "dust") {
+          // making sure it get the location
+          boolean check = false;
+          while (check == false){
+               query(ei.location(long sx, long sy));
+               if (sx > -5 & sy > -5){
+               // direction to say relevent to position
+                    query(ei.direction(string D));
+                    if (D == "north"){
+                    // north so +1,0 from location
+                         sx = sx +1;
+                         query(dustlist(list L));
+                         -dustlist(L);
+                         //C.println(L);
+                         L = L + [[sx, sy]];
+                         check = true;
+                         +dustlist(L);
+                    }
+                    else if (D== "south"){
+                    // south so -1,0 from location
+                         sx = sx -1;
+                         query(dustlist(list L));
+                         -dustlist(L);
+                         //C.println(L);
+                         L = L + [[sx, sy]];
+                         check = true;
+                         +dustlist(L);
+                    }
+                    else if (D== "east"){
+                    // east so 0,+1 from location
+                         sy = sy +1;
+                         query(dustlist(list L));
+                         -dustlist(L);
+                         //C.println(L);
+                         L = L + [[sx, sy]];
+                         check = true;
+                         +dustlist(L);
+                    }
+                    else if (D== "west"){
+                    // west so 0, -1 from location
+                         sy = sy -1;
+                         query(dustlist(list L));
+                         -dustlist(L);
+                         //C.println(L);
+                         L = L + [[sx, sy]];
+                         check = true;
+                         +dustlist(L);
+                    }
+               }
+               else{}
+          }
+     }
+     rule +!check5() {}
+     rule +!check6() : ei.square("forwardLeft", "dust") {
+          // making sure it get the location
+          boolean check = false;
+          while (check == false){
+               query(ei.location(long sx, long sy));
+               if (sx > -5 & sy > -5){
+               // direction to say relevent to position
+                    query(ei.direction(string D));
+                    if (D == "north"){
+                    // north so -1,-1 from location
+                         sy = sy -1;
+                         sx = sx -1;
+                         query(dustlist(list L));
+                         -dustlist(L);
+                         //C.println(L);
+                         L = L + [[sx, sy]];
+                         check = true;
+                         +dustlist(L);
+                    }
+                    else if (D== "south"){
+                    // south so +1,+1 from location
+                         sy = sy +1;
+                         sx = sx +1;
+                         query(dustlist(list L));
+                         -dustlist(L);
+                         //C.println(L);
+                         L = L + [[sx, sy]];
+                         check = true;
+                         +dustlist(L);
+                    }
+                    else if (D== "east"){
+                    // east so +1,-1 from location
+                         sx = sx +1;
+                         sy = sy -1;
+                         query(dustlist(list L));
+                         -dustlist(L);
+                         //C.println(L);
+                         L = L + [[sx, sy]];
+                         check = true;
+                         +dustlist(L);
+                    }
+                    else if (D== "west"){
+                    // west so -1, +1 from location
+                         sx = sx -1;
+                         sy = sy +1;
+                         query(dustlist(list L));
+                         -dustlist(L);
+                         //C.println(L);
+                         L = L + [[sx, sy]];
+                         check = true;
+                         +dustlist(L);
+                    }
+               }
+               else{}
+          }
+     }
+     rule +!check6() {}
+
+     rule +!check7() : ei.square("forwardRight", "dust") {
+          // making sure it get the location
+          boolean check = false;
+          while (check == false){
+               query(ei.location(long sx, long sy));
+               if (sx > -5 & sy > -5){
+               // direction to say relevent to position
+                    query(ei.direction(string D));
+                    if (D == "north"){
+                    // north so +1,-1 from location
+                         sy = sy -1;
+                         sx = sx +1;
+                         query(dustlist(list L));
+                         -dustlist(L);
+                         //C.println(L);
+                         L = L + [[sx, sy]];
+                         check = true;
+                         +dustlist(L);
+                    }
+                    else if (D== "south"){
+                    // south so +1,-1 from location
+                         sy = sy +1;
+                         sx = sx -1;
+                         query(dustlist(list L));
+                         -dustlist(L);
+                         //C.println(L);
+                         L = L + [[sx, sy]];
+                         check = true;
+                         +dustlist(L);
+                    }
+                    else if (D== "east"){
+                    // east so +1,+1 from location
+                         sx = sx +1;
+                         sy = sy +1;
+                         query(dustlist(list L));
+                         -dustlist(L);
+                         //C.println(L);
+                         L = L + [[sx, sy]];
+                         check = true;
+                         +dustlist(L);
+                    }
+                    else if (D== "west"){
+                    // west so -1, -1 from location
+                         sx = sx -1;
+                         sy = sy -1;
+                         query(dustlist(list L));
+                         -dustlist(L);
+                         //C.println(L);
+                         L = L + [[sx, sy]];
+                         check = true;
+                         +dustlist(L);
+                    }
+                    // incase direction query fails
+                    else{}
+               }
+               else{}
+          }
+     }
+     rule +!check7() {}
+
+//abstracting the check goals
+     rule +!scan(){
+          !check1(); // check 1 is kind of pointless except for the first move
+          !check2();
+          !check3();
+          !check4();
+          !check5();
+          !check6();
+          !check7();
+     }
+
+// movement seperate to task
+// because not cleaning it will either keep it in same place beore moving or not collect all the data it can see
+     rule +!task(string action): free("forward"){
+     // check 1 not necessary because will have already got it
+          !scan();
+          ei.move("forward");
+          action = "move";
+     }
+     rule +!task(string action): free("left") & free("right"){
+          !scan();
+          // when both left and right free but forward is not pick randomly
+          int ran = 0+(math.randomInt() % 2);
+          if (ran == 0){
+               ei.move("left");
+          }
+          else{
+               ei.move("right");
+
+          }
+          action = "move";
+     }
+     rule +!task(string action): free("left"){
+          !scan();
+          ei.move("left");
+          action = "move";
+     }
+     rule +!task(string action): free("right"){
+          !scan();
+          ei.move("right");
+          action = "move";
+     }
+     // when can see no empty squares turns left until it can
+     rule +!task(string action){
+          !scan();
+          ei.move("left", 0);
+          action = "move";
+     }
+
+
+
+
+
+
+
+
+
+// main rule
+     rule +!main([string vacbot]) {
+          ei.join("hw");
+          ei.link(vacbot);
+          int ran = 0+(math.randomInt() % 2);
+          C.println("Leader activated");
+    }
+
+}
